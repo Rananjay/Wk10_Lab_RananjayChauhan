@@ -1,0 +1,7 @@
+<projectDescription>
+  <name>Wk10_Lab_RananjayChauhan</name>
+  <comment>Simple JavaFX JDBC lab</comment>
+  <projects/>
+  <buildSpec><buildCommand><name>org.eclipse.jdt.core.javabuilder</name><arguments/></buildCommand></buildSpec>
+  <natures><nature>org.eclipse.jdt.core.javanature</nature></natures>
+</projectDescription>
