@@ -29,62 +29,56 @@ public class Main extends Application {
     private final Label databaseStatus = new Label("Checking database...");
     private final Label message = new Label();
     private final Button submit = new Button("Submit Application");
-    private VBox paper;
+    private final Button clear = new Button("Clear");
+    private VBox form;
     private boolean saving;
 
     @Override
     public void start(Stage stage) {
+        // Keep the standard JavaFX controls and only a small amount of styling.
         Label logo = new Label("RC");
-        logo.setAlignment(Pos.CENTER);
-        logo.setMinSize(48, 48);
-        logo.setMaxSize(48, 48);
-        logo.setStyle("-fx-background-color: black; -fx-text-fill: white;"
-                + "-fx-font-size: 22px; -fx-font-weight: bold;");
-        Label companyName = new Label("RC");
-        companyName.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        HBox company = new HBox(8, logo,
-                new VBox(2, companyName, new Label("Company")));
+        logo.setPadding(new Insets(7));
+        logo.setStyle("-fx-border-color: #777; -fx-font-weight: bold;");
+        HBox company = new HBox(8, logo, new Label("RC Company"));
         company.setAlignment(Pos.CENTER_LEFT);
-        company.setMinWidth(145);
         Label title = new Label("Employment Application");
-        title.setAlignment(Pos.CENTER);
-        title.setMaxWidth(Double.MAX_VALUE);
-        title.setMinHeight(62);
-        title.setStyle("-fx-background-color: black; -fx-text-fill: white;"
-                + "-fx-font-size: 24px; -fx-font-weight: bold;");
-        HBox.setHgrow(title, Priority.ALWAYS);
-        HBox header = new HBox(12, company, title);
-        header.setAlignment(Pos.CENTER_LEFT);
+        title.setStyle("-fx-font-size: 16px;");
+        BorderPane header = new BorderPane();
+        header.setLeft(company);
+        header.setRight(title);
+        BorderPane.setAlignment(title, Pos.CENTER_RIGHT);
 
         for (TextField field : fields()) {
             field.setPrefHeight(30);
             field.setMaxWidth(Double.MAX_VALUE);
-            field.setStyle("-fx-background-color: white; -fx-border-color: #777;"
-                    + "-fx-background-radius: 0; -fx-border-radius: 0;");
         }
         available.setMaxWidth(Double.MAX_VALUE);
-        available.setPromptText("Use the calendar or local date format");
-        GridPane personal = paperGrid();
-        personal.add(new Label("Full Name"), 0, 0);
+        available.setPromptText("Select a date");
+
+        // Labels and inputs stay in the same groups as the original form.
+        GridPane personal = createGrid();
+        personal.add(new Label("Full Name:"), 0, 0);
         personal.add(name, 1, 0, 3, 1);
-        personal.add(new Label("Current Address"), 0, 1);
+        personal.add(new Label("Current Address:"), 0, 1);
         personal.add(address, 1, 1, 3, 1);
-        personal.add(new Label("Contact\nNumber"), 0, 2);
+        personal.add(new Label("Contact Number:"), 0, 2);
         personal.add(phone, 1, 2);
-        personal.add(new Label("Email\nAddress"), 2, 2);
+        personal.add(new Label("Email Address:"), 2, 2);
         personal.add(email, 3, 2);
-        personal.add(new Label("Highest Educational\nAttainment"), 0, 3);
+        personal.add(new Label("Highest Educational\nAttainment:"), 0, 3);
         personal.add(education, 1, 3);
-        HBox genderChoices = new HBox(12, choice("Male", genderGroup),
-                choice("Female", genderGroup), choice("Other", genderGroup));
-        personal.add(new VBox(8, new Label("Gender"), genderChoices), 2, 3, 2, 1);
-        GridPane employment = paperGrid();
-        employment.add(new Label("Date\nAvailable"), 0, 0);
+        personal.add(new Label("Gender:"), 2, 3);
+        personal.add(new HBox(10, choice("Male", genderGroup),
+                choice("Female", genderGroup), choice("Other", genderGroup)), 3, 3);
+
+        GridPane employment = createGrid();
+        employment.add(new Label("Date Available:"), 0, 0);
         employment.add(available, 1, 0);
-        employment.add(new Label("Desired\nPosition"), 2, 0);
+        employment.add(new Label("Desired Position:"), 2, 0);
         employment.add(position, 3, 0);
-        employment.add(new Label("Desired Salary"), 0, 1);
+        employment.add(new Label("Desired Salary:"), 0, 1);
         employment.add(salary, 1, 1, 3, 1);
+
         explanation.setDisable(true);
         relativesGroup.selectedToggleProperty().addListener((obs, old, selected) -> {
             boolean yes = "Yes".equals(selectedText(relativesGroup));
@@ -92,46 +86,42 @@ public class Main extends Application {
             if (!yes) explanation.clear();
         });
         HBox explanationRow = new HBox(12,
-                new Label("If yes, please explain further"), explanation);
+                new Label("If yes, please explain further:"), explanation);
         explanationRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(explanation, Priority.ALWAYS);
-        VBox body = new VBox(18, section("Personal Information"), personal,
-                section("Employment Eligibility"), employment,
-                new VBox(9, new Label("Are you legally authorized to work in the country?"),
-                        yesNo(authorizedGroup)),
-                new VBox(9, new Label("Do you have relatives working for our company?"),
-                        yesNo(relativesGroup)), explanationRow);
-        body.setPadding(new Insets(24, 22, 24, 22));
-        Label declaration = new Label("By submitting this application, you agree\n"
-                + "to adhere to company policies and\n"
-                + "provide accurate information throughout\nthe employment process.");
+        Label declaration = new Label("By submitting this application, you agree to adhere to "
+                + "company policies and provide accurate information throughout the employment process.");
         declaration.setWrapText(true);
-        HBox.setHgrow(declaration, Priority.ALWAYS);
-        signature.setPrefSize(170, 60);
-        signature.setMaxWidth(170);
-        HBox footer = new HBox(16, declaration,
-                new Label("Applicant's\nSignature"), signature);
-        footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setPadding(new Insets(20, 22, 20, 22));
-        footer.setStyle("-fx-border-color: black; -fx-border-width: 1 0 0 0;");
-        paper = new VBox(header, body, footer);
-        paper.setMaxWidth(760);
-        paper.setStyle("-fx-background-color: white; -fx-border-color: black;");
-        databaseStatus.setWrapText(true);
-        message.setWrapText(true);
-        message.setMaxWidth(760);
-        submit.setDefaultButton(true);
-        submit.setStyle("-fx-background-color: black; -fx-text-fill: white;"
-                + "-fx-background-radius: 0; -fx-padding: 8 24;");
+        HBox signatureRow = new HBox(12, new Label("Applicant's Signature:"), signature);
+        signatureRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(signature, Priority.ALWAYS);
+
+        form = new VBox(14, section("Personal Information"), personal,
+                new Separator(), section("Employment Eligibility"), employment,
+                new VBox(7, new Label("Are you legally authorized to work in the country?"),
+                        yesNo(authorizedGroup)),
+                new VBox(7, new Label("Do you have relatives working for our company?"),
+                        yesNo(relativesGroup)), explanationRow,
+                new Separator(), declaration, signatureRow);
         submit.setOnAction(event -> save());
-        VBox page = new VBox(12, paper, databaseStatus, submit, message);
-        page.setAlignment(Pos.TOP_CENTER);
-        page.setPadding(new Insets(20));
-        page.setStyle("-fx-background-color: #eee; -fx-font-family: Arial;"
-                + "-fx-font-size: 12px;");
+        clear.setOnAction(event -> {
+            if (!saving) {
+                clearForm();
+                message.setText("");
+            }
+        });
+        HBox buttons = new HBox(10, submit, clear);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        message.setWrapText(true);
+        databaseStatus.setWrapText(true);
+        VBox page = new VBox(18, header, new Separator(), form,
+                buttons, message, databaseStatus);
+        page.setPadding(new Insets(24));
+        page.setStyle("-fx-font-family: Arial; -fx-font-size: 13px;");
         ScrollPane scroll = new ScrollPane(page);
         scroll.setFitToWidth(true);
-        stage.setScene(new Scene(scroll, 820, 900));
+        stage.setScene(new Scene(scroll, 820, 820));
+        stage.setMinWidth(800);
         stage.setTitle("RC Company - Employment Application");
         stage.show();
         checkDatabaseConnection();
@@ -142,11 +132,11 @@ public class Main extends Application {
                 position, salary, explanation, signature};
     }
 
-    private GridPane paperGrid() {
+    private GridPane createGrid() {
         GridPane grid = new GridPane();
         grid.setHgap(12);
-        grid.setVgap(14);
-        for (double width : new double[]{18, 30, 16, 36}) {
+        grid.setVgap(12);
+        for (double width : new double[]{20, 27, 17, 36}) {
             ColumnConstraints column = new ColumnConstraints();
             column.setPercentWidth(width);
             grid.getColumnConstraints().add(column);
@@ -156,10 +146,7 @@ public class Main extends Application {
 
     private Label section(String text) {
         Label label = new Label(text);
-        label.setPrefWidth(250);
-        label.setPadding(new Insets(7, 12, 7, 12));
-        label.setStyle("-fx-background-color: black; -fx-text-fill: white;"
-                + "-fx-font-weight: bold;");
+        label.setStyle("-fx-font-weight: bold;");
         return label;
     }
 
@@ -170,7 +157,7 @@ public class Main extends Application {
     }
 
     private HBox yesNo(ToggleGroup group) {
-        return new HBox(24, choice("Yes", group), choice("No", group));
+        return new HBox(20, choice("Yes", group), choice("No", group));
     }
 
     private String selectedText(ToggleGroup group) {
@@ -178,7 +165,7 @@ public class Main extends Application {
         return selected == null ? "" : selected.getText();
     }
 
-    // Keep validation separate from database saving for a simple demo.
+    // Return the first problem, or an empty string when the form is valid.
     private String validateForm() {
         TextField[] required = {name, address, phone, email, education, position, signature};
         String[] captions = {"Full name", "Address", "Phone", "Email", "Education",
@@ -197,7 +184,6 @@ public class Main extends Application {
         if (name.getText().trim().codePoints().noneMatch(Character::isLetter)) {
             return "Full name must contain at least one letter.";
         }
-        // A practical format check, not proof that the mailbox exists.
         String mail = email.getText().trim();
         if (!mail.matches("[A-Za-z0-9_%+\\-]+(?:\\.[A-Za-z0-9_%+\\-]+)*@"
                 + "(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+"
@@ -260,11 +246,13 @@ public class Main extends Application {
 
     private void setSaving(boolean busy) {
         saving = busy;
-        paper.setDisable(busy);
+        form.setDisable(busy);
         submit.setDisable(busy);
+        clear.setDisable(busy);
         submit.setText(busy ? "Saving..." : "Submit Application");
     }
 
+    // Clears only the screen, never the database.
     private void clearForm() {
         for (TextField field : fields()) field.clear();
         available.setValue(null);
@@ -306,7 +294,6 @@ public class Main extends Application {
         if (saving) return;
         String error = validateForm();
         if (!error.isEmpty()) {
-            message.setStyle("-fx-text-fill: #b91c1c;");
             message.setText(error);
             popup(Alert.AlertType.WARNING, "Please correct the form", error);
             return;
@@ -324,7 +311,6 @@ public class Main extends Application {
                 + "position, salary, authorized, relatives, explanation, signature) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         setSaving(true);
-        message.setStyle("-fx-text-fill: black;");
         message.setText("Saving application...");
         Task<Void> task = new Task<>() {
             @Override
@@ -351,7 +337,6 @@ public class Main extends Application {
         };
         task.setOnSucceeded(event -> {
             clearForm();
-            message.setStyle("-fx-text-fill: #15803d;");
             message.setText("Application saved successfully! The form has been cleared.");
             try {
                 popup(Alert.AlertType.INFORMATION, "Application saved successfully",
@@ -362,7 +347,6 @@ public class Main extends Application {
             }
         });
         task.setOnFailed(event -> {
-            message.setStyle("-fx-text-fill: #b91c1c;");
             message.setText("Save could not be confirmed. Your inputs have been kept.");
             try {
                 popup(Alert.AlertType.ERROR, "Save could not be confirmed",
