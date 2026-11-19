@@ -1,11 +1,8 @@
 package application;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
-import java.sql.Date;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
+import java.time.LocalDate;
 import javafx.application.Application;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -32,10 +29,11 @@ public class Main extends Application {
     private final Label databaseStatus = new Label("Checking database...");
     private final Label message = new Label();
     private final Button submit = new Button("Submit Application");
+    private VBox paper;
+    private boolean saving;
 
     @Override
     public void start(Stage stage) {
-        // Header: the RC logo is text, so no image file is needed.
         Label logo = new Label("RC");
         logo.setAlignment(Pos.CENTER);
         logo.setMinSize(48, 48);
@@ -44,8 +42,8 @@ public class Main extends Application {
                 + "-fx-font-size: 22px; -fx-font-weight: bold;");
         Label companyName = new Label("RC");
         companyName.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-        VBox companyText = new VBox(2, companyName, new Label("Company"));
-        HBox company = new HBox(8, logo, companyText);
+        HBox company = new HBox(8, logo,
+                new VBox(2, companyName, new Label("Company")));
         company.setAlignment(Pos.CENTER_LEFT);
         company.setMinWidth(145);
         Label title = new Label("Employment Application");
@@ -58,17 +56,14 @@ public class Main extends Application {
         HBox header = new HBox(12, company, title);
         header.setAlignment(Pos.CENTER_LEFT);
 
-        for (TextField field : new TextField[]{name, address, phone, email,
-                education, position, salary, explanation, signature}) {
+        for (TextField field : fields()) {
             field.setPrefHeight(30);
             field.setMaxWidth(Double.MAX_VALUE);
             field.setStyle("-fx-background-color: white; -fx-border-color: #777;"
                     + "-fx-background-radius: 0; -fx-border-radius: 0;");
         }
-        available.setPromptText("mm/dd/yyyy");
         available.setMaxWidth(Double.MAX_VALUE);
-
-        // Personal information: label, input, label, input.
+        available.setPromptText("Use the calendar or local date format");
         GridPane personal = paperGrid();
         personal.add(new Label("Full Name"), 0, 0);
         personal.add(name, 1, 0, 3, 1);
@@ -83,7 +78,6 @@ public class Main extends Application {
         HBox genderChoices = new HBox(12, choice("Male", genderGroup),
                 choice("Female", genderGroup), choice("Other", genderGroup));
         personal.add(new VBox(8, new Label("Gender"), genderChoices), 2, 3, 2, 1);
-
         GridPane employment = paperGrid();
         employment.add(new Label("Date\nAvailable"), 0, 0);
         employment.add(available, 1, 0);
@@ -93,9 +87,9 @@ public class Main extends Application {
         employment.add(salary, 1, 1, 3, 1);
         explanation.setDisable(true);
         relativesGroup.selectedToggleProperty().addListener((obs, old, selected) -> {
-            boolean hasRelatives = "Yes".equals(selectedText(relativesGroup));
-            explanation.setDisable(!hasRelatives);
-            if (!hasRelatives) explanation.clear();
+            boolean yes = "Yes".equals(selectedText(relativesGroup));
+            explanation.setDisable(!yes);
+            if (!yes) explanation.clear();
         });
         HBox explanationRow = new HBox(12,
                 new Label("If yes, please explain further"), explanation);
@@ -108,11 +102,9 @@ public class Main extends Application {
                 new VBox(9, new Label("Do you have relatives working for our company?"),
                         yesNo(relativesGroup)), explanationRow);
         body.setPadding(new Insets(24, 22, 24, 22));
-
         Label declaration = new Label("By submitting this application, you agree\n"
                 + "to adhere to company policies and\n"
-                + "provide accurate information throughout\n"
-                + "the employment process.");
+                + "provide accurate information throughout\nthe employment process.");
         declaration.setWrapText(true);
         HBox.setHgrow(declaration, Priority.ALWAYS);
         signature.setPrefSize(170, 60);
@@ -122,7 +114,7 @@ public class Main extends Application {
         footer.setAlignment(Pos.CENTER_LEFT);
         footer.setPadding(new Insets(20, 22, 20, 22));
         footer.setStyle("-fx-border-color: black; -fx-border-width: 1 0 0 0;");
-        VBox paper = new VBox(header, body, footer);
+        paper = new VBox(header, body, footer);
         paper.setMaxWidth(760);
         paper.setStyle("-fx-background-color: white; -fx-border-color: black;");
         databaseStatus.setWrapText(true);
@@ -143,6 +135,11 @@ public class Main extends Application {
         stage.setTitle("RC Company - Employment Application");
         stage.show();
         checkDatabaseConnection();
+    }
+
+    private TextField[] fields() {
+        return new TextField[]{name, address, phone, email, education,
+                position, salary, explanation, signature};
     }
 
     private GridPane paperGrid() {
@@ -181,6 +178,104 @@ public class Main extends Application {
         return selected == null ? "" : selected.getText();
     }
 
+    // Keep validation separate from database saving for a simple demo.
+    private String validateForm() {
+        TextField[] required = {name, address, phone, email, education, position, signature};
+        String[] captions = {"Full name", "Address", "Phone", "Email", "Education",
+                "Desired position", "Signature"};
+        int[] limits = {150, 255, 40, 150, 150, 150, 150};
+        for (int i = 0; i < required.length; i++) {
+            String value = required[i].getText().trim();
+            if (value.isBlank()) return captions[i] + " is required.";
+            if (value.length() > limits[i]) {
+                return captions[i] + " must be at most " + limits[i] + " characters.";
+            }
+            if (value.codePoints().anyMatch(Character::isISOControl)) {
+                return captions[i] + " must not contain control characters.";
+            }
+        }
+        if (name.getText().trim().codePoints().noneMatch(Character::isLetter)) {
+            return "Full name must contain at least one letter.";
+        }
+        // A practical format check, not proof that the mailbox exists.
+        String mail = email.getText().trim();
+        if (!mail.matches("[A-Za-z0-9_%+\\-]+(?:\\.[A-Za-z0-9_%+\\-]+)*@"
+                + "(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+"
+                + "[A-Za-z]{2,63}") || mail.indexOf('@') > 64) {
+            return "Enter an email such as name@example.com (no spaces).";
+        }
+        String number = phone.getText().trim();
+        if (!number.matches("[+0-9() .-]+")
+                || number.indexOf('+') > 0
+                || number.chars().filter(c -> c == '+').count() > 1) {
+            return "Phone may contain digits, spaces, brackets, dots, dashes, and a leading +1.";
+        }
+        String digits = number.replaceAll("[^0-9]", "");
+        if (digits.length() == 11 && digits.startsWith("1")) digits = digits.substring(1);
+        if (!digits.matches("[2-9][0-9]{2}[2-9][0-9]{6}")) {
+            return "Enter a Canadian/US number such as 416-555-0123 or +1 416-555-0123.";
+        }
+        if (number.startsWith("+") && !number.replaceAll("[^0-9]", "").matches("1[0-9]{10}")) {
+            return "Use +1 followed by a 10-digit Canadian/US phone number.";
+        }
+        String plainNumber = number.replaceAll("[ .-]", "");
+        if (!plainNumber.matches("(?:\\+?1)?(?:[0-9]{10}|\\([0-9]{3}\\)[0-9]{7})")) {
+            return "Check phone brackets: use (416) 555-0123 or 416-555-0123.";
+        }
+        try {
+            available.commitValue();
+        } catch (RuntimeException exception) {
+            return "Enter a valid available date or select it from the calendar.";
+        }
+        if (available.getValue() == null) return "Select your available date.";
+        if (available.getValue().isBefore(LocalDate.now())) {
+            return "Available date must be today or a future date.";
+        }
+        if (available.getValue().getYear() > 9999) return "Available date year must not exceed 9999.";
+        if (selectedText(genderGroup).isEmpty()) return "Select a gender option.";
+        if (selectedText(authorizedGroup).isEmpty()) return "Answer the work authorization question.";
+        if (selectedText(relativesGroup).isEmpty()) return "Answer the relatives question.";
+        if ("Yes".equals(selectedText(relativesGroup)) && explanation.getText().isBlank()) {
+            return "Enter your relative's name and relationship.";
+        }
+        if (explanation.getText().length() > 4000) return "Keep the relatives explanation within 4000 characters.";
+        String pay = salary.getText().trim();
+        if (!pay.matches("[0-9]{1,10}(?:\\.[0-9]{1,2})?")) {
+            return "Salary must be digits only, with up to 2 decimal places; example: 45000.00.";
+        }
+        if (new BigDecimal(pay).compareTo(new BigDecimal("9999999999.99")) > 0) {
+            return "Salary must not exceed 9999999999.99.";
+        }
+        return "";
+    }
+
+    private void popup(Alert.AlertType type, String heading, String text) {
+        Alert alert = new Alert(type);
+        alert.initOwner(submit.getScene().getWindow());
+        alert.setTitle("RC Company");
+        alert.setHeaderText(heading);
+        alert.setContentText(text);
+        alert.showAndWait();
+    }
+
+    private void setSaving(boolean busy) {
+        saving = busy;
+        paper.setDisable(busy);
+        submit.setDisable(busy);
+        submit.setText(busy ? "Saving..." : "Submit Application");
+    }
+
+    private void clearForm() {
+        for (TextField field : fields()) field.clear();
+        available.setValue(null);
+        available.getEditor().clear();
+        genderGroup.selectToggle(null);
+        authorizedGroup.selectToggle(null);
+        relativesGroup.selectToggle(null);
+        explanation.setDisable(true);
+        name.requestFocus();
+    }
+
     private Connection openConnection() throws SQLException {
         String user = System.getenv("DB_USER");
         String password = System.getenv("DB_PASSWORD");
@@ -196,9 +291,7 @@ public class Main extends Application {
             @Override
             protected Void call() throws Exception {
                 try (Connection connection = openConnection()) {
-                    if (!connection.isValid(5)) {
-                        throw new SQLException("Connection validation failed.");
-                    }
+                    if (!connection.isValid(5)) throw new SQLException("Connection validation failed.");
                 }
                 return null;
             }
@@ -210,44 +303,28 @@ public class Main extends Application {
     }
 
     private void save() {
-        message.setText("");
-        if (name.getText().isBlank() || available.getValue() == null
-                || selectedText(genderGroup).isEmpty()
-                || selectedText(authorizedGroup).isEmpty()
-                || selectedText(relativesGroup).isEmpty()
-                || signature.getText().isBlank()) {
-            message.setText("Enter name, date, signature, gender, and both Yes/No answers.");
+        if (saving) return;
+        String error = validateForm();
+        if (!error.isEmpty()) {
+            message.setStyle("-fx-text-fill: #b91c1c;");
+            message.setText(error);
+            popup(Alert.AlertType.WARNING, "Please correct the form", error);
             return;
         }
         boolean authorized = "Yes".equals(selectedText(authorizedGroup));
         boolean relatives = "Yes".equals(selectedText(relativesGroup));
-        if (relatives && explanation.getText().isBlank()) {
-            message.setText("Please enter your relative's name and relationship.");
-            return;
-        }
-        BigDecimal amount;
-        try {
-            amount = new BigDecimal(salary.getText().trim());
-            if (amount.signum() < 0 || amount.scale() > 2
-                    || amount.compareTo(new BigDecimal("9999999999.99")) > 0) {
-                throw new NumberFormatException();
-            }
-        } catch (NumberFormatException exception) {
-            message.setText("Enter salary from 0 to 9999999999.99, with up to 2 decimal places.");
-            return;
-        }
-        // Read controls on the JavaFX thread before starting the database task.
         String[] values = {name.getText().trim(), address.getText().trim(),
                 phone.getText().trim(), email.getText().trim(), education.getText().trim(),
                 selectedText(genderGroup), position.getText().trim(),
                 relatives ? explanation.getText().trim() : "", signature.getText().trim()};
         Date date = Date.valueOf(available.getValue());
-        BigDecimal savedSalary = amount;
+        BigDecimal amount = new BigDecimal(salary.getText().trim());
         String sql = "INSERT INTO applications "
                 + "(full_name, address, phone, email, education, gender, available_date, "
                 + "position, salary, authorized, relatives, explanation, signature) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        submit.setDisable(true);
+        setSaving(true);
+        message.setStyle("-fx-text-fill: black;");
         message.setText("Saving application...");
         Task<Void> task = new Task<>() {
             @Override
@@ -262,26 +339,39 @@ public class Main extends Application {
                     statement.setString(6, values[5]);
                     statement.setDate(7, date);
                     statement.setString(8, values[6]);
-                    statement.setBigDecimal(9, savedSalary);
+                    statement.setBigDecimal(9, amount);
                     statement.setBoolean(10, authorized);
                     statement.setBoolean(11, relatives);
                     statement.setString(12, values[7]);
                     statement.setString(13, values[8]);
-                    if (statement.executeUpdate() != 1) {
-                        throw new SQLException("The application was not inserted.");
-                    }
+                    if (statement.executeUpdate() != 1) throw new SQLException("Expected one inserted row.");
                 }
                 return null;
             }
         };
         task.setOnSucceeded(event -> {
-            submit.setDisable(false);
-            databaseStatus.setText("Database connection successful!");
-            message.setText("Application saved successfully!");
+            clearForm();
+            message.setStyle("-fx-text-fill: #15803d;");
+            message.setText("Application saved successfully! The form has been cleared.");
+            try {
+                popup(Alert.AlertType.INFORMATION, "Application saved successfully",
+                        "Your application was saved to MySQL. The form has been cleared.");
+            } finally {
+                setSaving(false);
+                name.requestFocus();
+            }
         });
         task.setOnFailed(event -> {
-            submit.setDisable(false);
-            message.setText("Could not save application: " + task.getException().getMessage());
+            message.setStyle("-fx-text-fill: #b91c1c;");
+            message.setText("Save could not be confirmed. Your inputs have been kept.");
+            try {
+                popup(Alert.AlertType.ERROR, "Save could not be confirmed",
+                        task.getException().getMessage()
+                        + "\nYour inputs have been kept. If the connection failed during saving,"
+                        + " check Workbench before retrying to avoid a duplicate.");
+            } finally {
+                setSaving(false);
+            }
         });
         runInBackground(task);
     }
