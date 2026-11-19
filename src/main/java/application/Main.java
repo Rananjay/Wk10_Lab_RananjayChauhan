@@ -1,7 +1,9 @@
 package application;
 
+import application.config.Database;
+import application.dao.JdbcApplicationDao;
+import application.model.EmploymentApplication;
 import java.math.BigDecimal;
-import java.sql.*;
 import java.time.LocalDate;
 import javafx.application.Application;
 import javafx.concurrent.Task;
@@ -10,9 +12,13 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
 public class Main extends Application {
+    private final JdbcApplicationDao applicationDao = new JdbcApplicationDao();
     private final TextField name = new TextField();
     private final TextField address = new TextField();
     private final TextField phone = new TextField();
@@ -26,122 +32,100 @@ public class Main extends Application {
     private final ToggleGroup genderGroup = new ToggleGroup();
     private final ToggleGroup authorizedGroup = new ToggleGroup();
     private final ToggleGroup relativesGroup = new ToggleGroup();
-    private final Label databaseStatus = new Label("Checking database...");
+    private final Button saveButton = new Button("Save");
+    private final Button clearButton = new Button("Clear");
     private final Label message = new Label();
-    private final Button submit = new Button("Submit Application");
-    private final Button clear = new Button("Clear");
-    private VBox form;
+    private final Label databaseStatus = new Label("Checking database...");
+    private GridPane grid;
     private boolean saving;
 
     @Override
-    public void start(Stage stage) {
-        // Keep the standard JavaFX controls and only a small amount of styling.
+    public void start(Stage primaryStage) {
+        primaryStage.setTitle("RC Company - Employment Application");
+        grid = new GridPane();
+        grid.setAlignment(Pos.CENTER);
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(25));
+        ColumnConstraints labels = new ColumnConstraints();
+        labels.setMinWidth(170);
+        ColumnConstraints inputs = new ColumnConstraints();
+        inputs.setPrefWidth(350);
+        inputs.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(labels, inputs);
+
+        // A plain title and GridPane, following the classroom example.
         Label logo = new Label("RC");
-        logo.setPadding(new Insets(7));
-        logo.setStyle("-fx-border-color: #777; -fx-font-weight: bold;");
-        HBox company = new HBox(8, logo, new Label("RC Company"));
+        logo.setStyle("-fx-font-weight: bold; -fx-border-color: gray; -fx-padding: 6;");
+        HBox company = new HBox(10, logo, new Label("RC Company"));
         company.setAlignment(Pos.CENTER_LEFT);
-        Label title = new Label("Employment Application");
-        title.setStyle("-fx-font-size: 16px;");
-        BorderPane header = new BorderPane();
-        header.setLeft(company);
-        header.setRight(title);
-        BorderPane.setAlignment(title, Pos.CENTER_RIGHT);
-
-        for (TextField field : fields()) {
-            field.setPrefHeight(30);
-            field.setMaxWidth(Double.MAX_VALUE);
-        }
+        grid.add(company, 0, 0, 2, 1);
+        Text sceneTitle = new Text("Employment Application");
+        sceneTitle.setFont(Font.font("Tahoma", FontWeight.NORMAL, 20));
+        grid.add(sceneTitle, 0, 1, 2, 1);
+        grid.add(section("Personal Information"), 0, 2, 2, 1);
+        grid.add(new Label("Full Name:"), 0, 3);
+        grid.add(name, 1, 3);
+        grid.add(new Label("Current Address:"), 0, 4);
+        grid.add(address, 1, 4);
+        grid.add(new Label("Contact Number:"), 0, 5);
+        grid.add(phone, 1, 5);
+        grid.add(new Label("Email Address:"), 0, 6);
+        grid.add(email, 1, 6);
+        grid.add(new Label("Highest Educational\nAttainment:"), 0, 7);
+        grid.add(education, 1, 7);
+        grid.add(new Label("Gender:"), 0, 8);
+        grid.add(new HBox(12, choice("Male", genderGroup),
+                choice("Female", genderGroup), choice("Other", genderGroup)), 1, 8);
+        grid.add(new Separator(), 0, 9, 2, 1);
+        grid.add(section("Employment Eligibility"), 0, 10, 2, 1);
+        grid.add(new Label("Date Available:"), 0, 11);
+        grid.add(available, 1, 11);
         available.setMaxWidth(Double.MAX_VALUE);
-        available.setPromptText("Select a date");
-
-        // Labels and inputs stay in the same groups as the original form.
-        GridPane personal = createGrid();
-        personal.add(new Label("Full Name:"), 0, 0);
-        personal.add(name, 1, 0, 3, 1);
-        personal.add(new Label("Current Address:"), 0, 1);
-        personal.add(address, 1, 1, 3, 1);
-        personal.add(new Label("Contact Number:"), 0, 2);
-        personal.add(phone, 1, 2);
-        personal.add(new Label("Email Address:"), 2, 2);
-        personal.add(email, 3, 2);
-        personal.add(new Label("Highest Educational\nAttainment:"), 0, 3);
-        personal.add(education, 1, 3);
-        personal.add(new Label("Gender:"), 2, 3);
-        personal.add(new HBox(10, choice("Male", genderGroup),
-                choice("Female", genderGroup), choice("Other", genderGroup)), 3, 3);
-
-        GridPane employment = createGrid();
-        employment.add(new Label("Date Available:"), 0, 0);
-        employment.add(available, 1, 0);
-        employment.add(new Label("Desired Position:"), 2, 0);
-        employment.add(position, 3, 0);
-        employment.add(new Label("Desired Salary:"), 0, 1);
-        employment.add(salary, 1, 1, 3, 1);
-
+        grid.add(new Label("Desired Position:"), 0, 12);
+        grid.add(position, 1, 12);
+        grid.add(new Label("Desired Salary:"), 0, 13);
+        grid.add(salary, 1, 13);
+        grid.add(new Label("Are you legally authorized to work in the country?"), 0, 14, 2, 1);
+        grid.add(yesNo(authorizedGroup), 1, 15);
+        grid.add(new Label("Do you have relatives working for our company?"), 0, 16, 2, 1);
+        grid.add(yesNo(relativesGroup), 1, 17);
+        grid.add(new Label("If yes, please explain further:"), 0, 18);
+        grid.add(explanation, 1, 18);
         explanation.setDisable(true);
         relativesGroup.selectedToggleProperty().addListener((obs, old, selected) -> {
             boolean yes = "Yes".equals(selectedText(relativesGroup));
             explanation.setDisable(!yes);
             if (!yes) explanation.clear();
         });
-        HBox explanationRow = new HBox(12,
-                new Label("If yes, please explain further:"), explanation);
-        explanationRow.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(explanation, Priority.ALWAYS);
+        grid.add(new Separator(), 0, 19, 2, 1);
         Label declaration = new Label("By submitting this application, you agree to adhere to "
                 + "company policies and provide accurate information throughout the employment process.");
         declaration.setWrapText(true);
-        HBox signatureRow = new HBox(12, new Label("Applicant's Signature:"), signature);
-        signatureRow.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(signature, Priority.ALWAYS);
-
-        form = new VBox(14, section("Personal Information"), personal,
-                new Separator(), section("Employment Eligibility"), employment,
-                new VBox(7, new Label("Are you legally authorized to work in the country?"),
-                        yesNo(authorizedGroup)),
-                new VBox(7, new Label("Do you have relatives working for our company?"),
-                        yesNo(relativesGroup)), explanationRow,
-                new Separator(), declaration, signatureRow);
-        submit.setOnAction(event -> save());
-        clear.setOnAction(event -> {
+        declaration.setMaxWidth(540);
+        grid.add(declaration, 0, 20, 2, 1);
+        grid.add(new Label("Applicant's Signature:"), 0, 21);
+        grid.add(signature, 1, 21);
+        HBox buttons = new HBox(10, saveButton, clearButton);
+        buttons.setAlignment(Pos.BOTTOM_RIGHT);
+        grid.add(buttons, 1, 22);
+        message.setWrapText(true);
+        databaseStatus.setWrapText(true);
+        grid.add(message, 0, 23, 2, 1);
+        grid.add(databaseStatus, 0, 24, 2, 1);
+        saveButton.setOnAction(event -> saveApplication());
+        clearButton.setOnAction(event -> {
             if (!saving) {
                 clearForm();
                 message.setText("");
             }
         });
-        HBox buttons = new HBox(10, submit, clear);
-        buttons.setAlignment(Pos.CENTER_LEFT);
-        message.setWrapText(true);
-        databaseStatus.setWrapText(true);
-        VBox page = new VBox(18, header, new Separator(), form,
-                buttons, message, databaseStatus);
-        page.setPadding(new Insets(24));
-        page.setStyle("-fx-font-family: Arial; -fx-font-size: 13px;");
-        ScrollPane scroll = new ScrollPane(page);
+        ScrollPane scroll = new ScrollPane(grid);
         scroll.setFitToWidth(true);
-        stage.setScene(new Scene(scroll, 820, 820));
-        stage.setMinWidth(800);
-        stage.setTitle("RC Company - Employment Application");
-        stage.show();
+        primaryStage.setScene(new Scene(scroll, 680, 900));
+        primaryStage.setMinWidth(620);
+        primaryStage.show();
         checkDatabaseConnection();
-    }
-
-    private TextField[] fields() {
-        return new TextField[]{name, address, phone, email, education,
-                position, salary, explanation, signature};
-    }
-
-    private GridPane createGrid() {
-        GridPane grid = new GridPane();
-        grid.setHgap(12);
-        grid.setVgap(12);
-        for (double width : new double[]{20, 27, 17, 36}) {
-            ColumnConstraints column = new ColumnConstraints();
-            column.setPercentWidth(width);
-            grid.getColumnConstraints().add(column);
-        }
-        return grid;
     }
 
     private Label section(String text) {
@@ -165,7 +149,12 @@ public class Main extends Application {
         return selected == null ? "" : selected.getText();
     }
 
-    // Return the first problem, or an empty string when the form is valid.
+    private TextField[] fields() {
+        return new TextField[]{name, address, phone, email, education,
+                position, salary, explanation, signature};
+    }
+
+    // The first invalid value is shown before any database call.
     private String validateForm() {
         TextField[] required = {name, address, phone, email, education, position, signature};
         String[] captions = {"Full name", "Address", "Phone", "Email", "Education",
@@ -235,24 +224,65 @@ public class Main extends Application {
         return "";
     }
 
-    private void popup(Alert.AlertType type, String heading, String text) {
-        Alert alert = new Alert(type);
-        alert.initOwner(submit.getScene().getWindow());
-        alert.setTitle("RC Company");
-        alert.setHeaderText(heading);
-        alert.setContentText(text);
-        alert.showAndWait();
+    // Like createUserObject in the teacher example, capture the form in a model.
+    private EmploymentApplication createApplicationObject() {
+        boolean relatives = "Yes".equals(selectedText(relativesGroup));
+        return new EmploymentApplication(name.getText().trim(), address.getText().trim(),
+                phone.getText().trim(), email.getText().trim(), education.getText().trim(),
+                selectedText(genderGroup), available.getValue(), position.getText().trim(),
+                new BigDecimal(salary.getText().trim()),
+                "Yes".equals(selectedText(authorizedGroup)), relatives,
+                relatives ? explanation.getText().trim() : "", signature.getText().trim());
+    }
+
+    private void saveApplication() {
+        if (saving) return;
+        String error = validateForm();
+        if (!error.isEmpty()) {
+            message.setText(error);
+            alert("Check form", error, Alert.AlertType.WARNING);
+            return;
+        }
+        EmploymentApplication application = createApplicationObject();
+        setSaving(true);
+        message.setText("Saving application...");
+        Task<Void> task = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                applicationDao.save(application);
+                return null;
+            }
+        };
+        task.setOnSucceeded(event -> {
+            clearForm();
+            message.setText("Application saved successfully! The form has been cleared.");
+            try {
+                alert("Save", "Successful! Your application was saved and the form cleared.",
+                        Alert.AlertType.INFORMATION);
+            } finally {
+                setSaving(false);
+                name.requestFocus();
+            }
+        });
+        task.setOnFailed(event -> {
+            message.setText("Save could not be confirmed. Your inputs have been kept.");
+            try {
+                alert("Error", task.getException().getMessage()
+                        + "\nYour inputs have been kept. If the connection failed during saving,"
+                        + " check Workbench before retrying to avoid a duplicate.", Alert.AlertType.ERROR);
+            } finally {
+                setSaving(false);
+            }
+        });
+        runInBackground(task);
     }
 
     private void setSaving(boolean busy) {
         saving = busy;
-        form.setDisable(busy);
-        submit.setDisable(busy);
-        clear.setDisable(busy);
-        submit.setText(busy ? "Saving..." : "Submit Application");
+        grid.setDisable(busy);
+        saveButton.setText(busy ? "Saving..." : "Save");
     }
 
-    // Clears only the screen, never the database.
     private void clearForm() {
         for (TextField field : fields()) field.clear();
         available.setValue(null);
@@ -264,99 +294,26 @@ public class Main extends Application {
         name.requestFocus();
     }
 
-    private Connection openConnection() throws SQLException {
-        String user = System.getenv("DB_USER");
-        String password = System.getenv("DB_PASSWORD");
-        if (user == null || password == null) {
-            throw new SQLException("Set DB_USER and DB_PASSWORD in your run environment.");
-        }
-        return DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/wk10_lab", user, password);
+    private void alert(String title, String text, Alert.AlertType type) {
+        Alert alert = new Alert(type);
+        alert.initOwner(saveButton.getScene().getWindow());
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(text);
+        alert.showAndWait();
     }
 
     private void checkDatabaseConnection() {
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
-                try (Connection connection = openConnection()) {
-                    if (!connection.isValid(5)) throw new SQLException("Connection validation failed.");
-                }
+                Database.checkConnection();
                 return null;
             }
         };
         task.setOnSucceeded(event -> databaseStatus.setText("Database connection successful!"));
         task.setOnFailed(event -> databaseStatus.setText(
                 "Database connection failed: " + task.getException().getMessage()));
-        runInBackground(task);
-    }
-
-    private void save() {
-        if (saving) return;
-        String error = validateForm();
-        if (!error.isEmpty()) {
-            message.setText(error);
-            popup(Alert.AlertType.WARNING, "Please correct the form", error);
-            return;
-        }
-        boolean authorized = "Yes".equals(selectedText(authorizedGroup));
-        boolean relatives = "Yes".equals(selectedText(relativesGroup));
-        String[] values = {name.getText().trim(), address.getText().trim(),
-                phone.getText().trim(), email.getText().trim(), education.getText().trim(),
-                selectedText(genderGroup), position.getText().trim(),
-                relatives ? explanation.getText().trim() : "", signature.getText().trim()};
-        Date date = Date.valueOf(available.getValue());
-        BigDecimal amount = new BigDecimal(salary.getText().trim());
-        String sql = "INSERT INTO applications "
-                + "(full_name, address, phone, email, education, gender, available_date, "
-                + "position, salary, authorized, relatives, explanation, signature) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        setSaving(true);
-        message.setText("Saving application...");
-        Task<Void> task = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                try (Connection connection = openConnection();
-                     PreparedStatement statement = connection.prepareStatement(sql)) {
-                    statement.setString(1, values[0]);
-                    statement.setString(2, values[1]);
-                    statement.setString(3, values[2]);
-                    statement.setString(4, values[3]);
-                    statement.setString(5, values[4]);
-                    statement.setString(6, values[5]);
-                    statement.setDate(7, date);
-                    statement.setString(8, values[6]);
-                    statement.setBigDecimal(9, amount);
-                    statement.setBoolean(10, authorized);
-                    statement.setBoolean(11, relatives);
-                    statement.setString(12, values[7]);
-                    statement.setString(13, values[8]);
-                    if (statement.executeUpdate() != 1) throw new SQLException("Expected one inserted row.");
-                }
-                return null;
-            }
-        };
-        task.setOnSucceeded(event -> {
-            clearForm();
-            message.setText("Application saved successfully! The form has been cleared.");
-            try {
-                popup(Alert.AlertType.INFORMATION, "Application saved successfully",
-                        "Your application was saved to MySQL. The form has been cleared.");
-            } finally {
-                setSaving(false);
-                name.requestFocus();
-            }
-        });
-        task.setOnFailed(event -> {
-            message.setText("Save could not be confirmed. Your inputs have been kept.");
-            try {
-                popup(Alert.AlertType.ERROR, "Save could not be confirmed",
-                        task.getException().getMessage()
-                        + "\nYour inputs have been kept. If the connection failed during saving,"
-                        + " check Workbench before retrying to avoid a duplicate.");
-            } finally {
-                setSaving(false);
-            }
-        });
         runInBackground(task);
     }
 
