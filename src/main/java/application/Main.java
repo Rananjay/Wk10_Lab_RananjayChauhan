@@ -108,10 +108,10 @@ public class Main extends Application {
         Label logo = new Label("\u2605");
         logo.setStyle("-fx-font-size: 35px; -fx-text-fill: black;");
 
-        Label companyName = new Label("John");
+        Label companyName = new Label("RC company");
         companyName.setStyle("-fx-font-weight: bold;");
 
-        Label companySubtitle = new Label("Company");
+        Label companySubtitle = new Label("RC Company");
 
         VBox companyText = new VBox(0, companyName, companySubtitle);
 
